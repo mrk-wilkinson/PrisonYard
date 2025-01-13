@@ -56,6 +56,8 @@ fn get_c2_request(implant_id: u32) -> Json<CheckInResponse> {
     match implant_exists(implant_id) {
         Ok(inmate) => {
             let mut new_inmate = inmate.clone();
+            new_inmate.pending_instruct = "".to_string();
+            new_inmate.pending_instruct_type = c2_actions::Wait;
             let response = CheckInResponse {
                 task: inmate.pending_instruct_type,
                 task_parameters: inmate.pending_instruct,

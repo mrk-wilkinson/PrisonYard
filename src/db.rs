@@ -83,8 +83,14 @@ pub fn get_all_inmates() -> Vec<Inmate> {
     }).unwrap();
     let mut all_inmates: Vec<Inmate> = Vec::new();
     for inmate in inmate_iter {
-        let inmate_unwrapped = inmate.unwrap();
-        all_inmates.push(inmate_unwrapped);
+        match inmate {
+            Ok(inmate_unwrapped) => {
+                all_inmates.push(inmate_unwrapped);
+            }
+            Err(e) => {
+                println!("Error: {}", e);
+            }
+        }
     }
     return all_inmates;
 }
