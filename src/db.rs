@@ -53,7 +53,13 @@ pub fn update_database(inmate: Inmate) {
         params![inmate.os, inmate.hostname, inmate.ip, inmate.pid, SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs(), inmate.pending_instruct, inmate.pending_instruct_type.to_string(), serde_json::to_string(&inmate.request_actions).unwrap(), serde_json::to_string(&inmate.completed_actions).unwrap(), inmate.rowid]
     );
 }
-
+pub fn insert_inmate(inmate: Inmate) {
+    let conn = Connection::open("prisoninmates.db").unwrap();
+    let _ = conn.execute(
+        "INSERT INTO inmates (rowid, os, hostname, ip, pid, last_checkin, pending_instruct, pending_instruct_type, request_actions, completed_actions) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        params![inmate.rowid, inmate.os, inmate.hostname, inmate.ip, inmate.pid, SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs(), inmate.pending_instruct, inmate.pending_instruct_type.to_string(), serde_json::to_string(&inmate.request_actions).unwrap(), serde_json::to_string(&inmate.completed_actions).unwrap()]
+    );
+}
 pub fn get_all_inmates() -> Vec<Inmate> {
     let conn = Connection::open("prisoninmates.db").unwrap();
     let mut stmt = conn.prepare("SELECT * FROM inmates").unwrap();

