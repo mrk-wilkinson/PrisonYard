@@ -50,7 +50,7 @@ pub fn update_database(inmate: Inmate) {
     let conn = Connection::open("prisoninmates.db").unwrap();
     let _ = conn.execute(
         "UPDATE inmates SET os = ?1, hostname = ?2, ip = ?3, pid = ?4, last_checkin = ?5, pending_instruct = ?6, pending_instruct_type = ?7, request_actions = ?8, completed_actions = ?9 WHERE rowid = ?10",
-        params![inmate.os, inmate.hostname, inmate.ip, inmate.pid, SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs(), inmate.pending_instruct, inmate.pending_instruct_type.to_string(), serde_json::to_string(&inmate.request_actions).unwrap(), serde_json::to_string(&inmate.completed_actions).unwrap(), inmate.rowid]
+        params![inmate.os, inmate.hostname, inmate.ip, inmate.pid, inmate.last_checkin, inmate.pending_instruct, inmate.pending_instruct_type.to_string(), serde_json::to_string(&inmate.request_actions).unwrap(), serde_json::to_string(&inmate.completed_actions).unwrap(), inmate.rowid]
     );
 }
 pub fn insert_inmate(inmate: Inmate) {
