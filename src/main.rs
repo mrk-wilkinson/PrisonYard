@@ -7,7 +7,6 @@ use Justice::CheckInResponse;
 use Justice::PostRequest;
 use Justice::Inmate;
 use Justice::PostRequestHeaders;
-use rusqlite::{Connection, Result, params};
 use std::time::SystemTime;
 use std::fs;
 
